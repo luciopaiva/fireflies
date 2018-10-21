@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Untitled demo</title>
+    <style>
+        body {
+            font-size: 22px;
+        }
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent, #000000) #581a4b;
+        }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+    // Fireflies
+    // Inspired by p01's vine rider
+    // https://www.youtube.com/watch?v=16oLi1kvLHs
+
+    const GENERATION_SIZE = 30;
+    const STEERING_AGGRESSIVENESS = 10;  // lower numbers mean more aggressive turns
+    const VINE_LENGTH = 2;
+    const GROWTH_PERIOD_IN_FRAMES = 300;
+    const MOVING_SPEED_IN_PIXELS = 10;
+    const BIRTH_PERIOD_IN_MILLIS = 800;
+
+    let hue = 0;
+    const hsl = () => `hsl(${hue % 360},100%,50%)`;
+    const id = id => document.getElementById(id);
+
+    const cv = id("canvas");
+    const c = cv.getContext("2d");
+
+    let currentColor = hsl();
+
+    let vines = [];
+    let nextSpawnTime = 0;
+
+    let w = 0, hw = 0;
+    let h = 0, hh = 0;
+
+    const resize = () => {
+        w = cv.width = innerWidth; h = cv.height = innerHeight; hw = w >>> 1; hh = h >>> 1;
+        c.shadowBlur = 10;
+        c.lineWidth = 3;
+        c.lineCap = c.lineJoin = "round";
+    };
+
+    class Vine {
+        constructor(x, y, a, ai, len, color) {
+            this.x = x;
+            this.y = y;
+            this.a = a;
+            this.ai = ai;
+            this.len = len;
+            this.color = color;
+            this.p = [{ x: 0, y: 0 }];
+            this.age = 0;
+            this.steer();
+        }
+        steer() {
+            this.ai = (Math.PI / STEERING_AGGRESSIVENESS) * (Math.random() - 0.5);  // steer randomly
+        }
+        update() {
+            this.age++;
+            if (this.age % 30 === 0) {  // every half second
+                this.steer();
+            }
+            this.a += this.ai;
+            this.x += Math.cos(this.a) * this.len;
+            this.y += Math.sin(this.a) * this.len;
+
+            if (this.age < GROWTH_PERIOD_IN_FRAMES) {  // stop growing after this many frames
+                this.p.push({ x: this.x, y: this.y });
+            }
+            if (this.age > VINE_LENGTH) {  // only start removing parts after gets to this length
+                this.p.shift();
+            }
+        }
+        static create() {
+            return new Vine(0, 0, 2 * Math.PI * Math.random(), Math.PI / 20, MOVING_SPEED_IN_PIXELS, currentColor);
+        }
+    }
+
+    function spawn() {
+        for (let i = 0; i < GENERATION_SIZE; i++) {
+            vines.push(Vine.create());
+        }
+
+        hue += 50;
+        currentColor = hsl();
+    }
+
+    function update(now) {
+        c.setTransform(1, 0, 0, 1, 0, 0);
+        c.clearRect(0, 0, w, h);
+        c.translate(hw, hh);
+
+        vines.forEach(vine => vine.update());
+        vines = vines.filter(vine => vine.p.length > 0);
+        vines.forEach(vine => {
+            c.shadowColor = c.strokeStyle = vine.color;
+            c.beginPath();
+            c.moveTo(vine.p[0].x, vine.p[0].y);
+            for (let i = 1; i < vine.p.length; i++) {
+                c.lineTo(vine.p[i].x, vine.p[i].y);
+            }
+            c.stroke();
+        });
+
+        if (nextSpawnTime < now) {
+            spawn();
+            nextSpawnTime = now + BIRTH_PERIOD_IN_MILLIS;
+        }
+
+        requestAnimationFrame(update);
+    }
+
+    addEventListener("resize", resize);
+    resize();
+    requestAnimationFrame(update);
+
+</script>
+
+</body>
+</html>
